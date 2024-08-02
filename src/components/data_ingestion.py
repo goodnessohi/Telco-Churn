@@ -26,7 +26,7 @@ class DataIngestion:
             df = pd.read_csv('notebook/Dataset/Telco Churn Data.csv')
             logging.info('dataset read into pandas')
 
-            os.makedirs(os.path.dirname(self.ingestion_config.train_data_path),exist_ok=True)
+            os.makedirs(os.path.dirname(self.data_ingestion_config.train_data_path),exist_ok=True)
             df.to_csv(self.data_ingestion_config.raw_data_path, index=False)
             logging.info('data saved to csv')
 
@@ -36,7 +36,16 @@ class DataIngestion:
             test_set.to_csv(self.data_ingestion_config.test_data_path, index=False)
             logging.info('train and test datasets created and saved in artifacts')
 
-            
+            return(
+                self.ingestion_config.train_data_path,
+                self.ingestion_config.test_data_path
 
-        except:
-            pass
+            ) 
+
+        except Exception as e:
+            logging.error(f'Error in data ingestion: {str(e)}')
+            raise CustomException(e, sys)
+
+if __name__ == "__main__":
+    obj = DataIngestion()
+    train_data, test_data = obj.initiate_data_ingestion()
