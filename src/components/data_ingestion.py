@@ -37,14 +37,14 @@ class DataIngestion:
             logging.info('train and test datasets created and saved in artifacts')
 
             return(
-                self.ingestion_config.train_data_path,
-                self.ingestion_config.test_data_path
+                self.data_ingestion_config.train_data_path,
+                self.data_ingestion_config.test_data_path
 
             ) 
 
         except Exception as e:
             logging.error(f'Error in data ingestion: {str(e)}')
-            raise CustomException(e, sys)
+            raise CustomException(sys)
 
 if __name__ == "__main__":
     obj = DataIngestion()
