@@ -1,6 +1,7 @@
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List
 
 import numpy as np
 import dill
@@ -9,8 +10,9 @@ import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import FunctionTransformer
 
 from src.exception import CustomException
 from src.logger import logging
@@ -18,8 +20,7 @@ from src.utils import save_obj
 
 @dataclass
 class CustomReplacerConfig:
-    columns_to_replace: list = ['OnlineSecurity', 'OnlineBackup', 'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies']
-
+    columns_to_replace: List[str] = field(default_factory=lambda: ['OnlineSecurity', 'OnlineBackup', 'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies'])
 @dataclass
 class CustomReplacer(BaseEstimator, TransformerMixin):
     config: CustomReplacerConfig = CustomReplacerConfig()
@@ -51,7 +52,7 @@ class DataTransformation:
         '''This is responsible for data transformation '''
         try:
             numerical_columns = ['SeniorCitizen', 'tenure', 'MonthlyCharges', 'TotalCharges']
-            categorical_columns = ['customerID', 'gender', 'Partner', 'Dependents', 'PhoneService', 
+            categorical_columns = ['gender', 'Partner', 'Dependents', 'PhoneService', 
                                    'MultipleLines', 'InternetService', 'OnlineSecurity', 'OnlineBackup', 
                                    'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies', 'Contract', 
                                    'PaperlessBilling', 'PaymentMethod', 'Churn']
@@ -59,15 +60,16 @@ class DataTransformation:
 
             num_pipeline = Pipeline(
                 steps=[
-                    ("imputer", SimpleImputer(strategy="median")),
+                    ("imputer", SimpleImputer(strategy="most_frequent")),
                     
                 ]
                     )
             logging.info(f'Numerical pipeline created')
             cat_pipeline = Pipeline(
                 steps=[
+                    ("converter", FunctionTransformer(lambda x: x.astype(str))),
                     ("imputer", SimpleImputer(strategy="most_frequent")),
-                    ("label_encoder",LabelEncoder()),
+                    ("onehot", OneHotEncoder(handle_unknown='ignore')),
                     
                 ]
             )
@@ -75,6 +77,7 @@ class DataTransformation:
 
             preprocessor= ColumnTransformer(
                 [
+                    
                     ("num_pipeline", num_pipeline,numerical_columns),
                     ("cat_pipeline", cat_pipeline, categorical_columns)
                 ]
@@ -99,10 +102,9 @@ class DataTransformation:
             target_column_name = 'Churn'
             redundant_column_name = 'customerID'
 
-            input_feature_train_df = train_df.drop(columns=[target_column_name, redundant_column_name])
-            input_feature_test_df = test_df.drop(columns=[target_column_name, redundant_column_name])
-            target_feature_test_df = test_df[target_column_name]
-            target_feature_train_df = train_df[target_column_name]
+            input_feature_train_df = train_df.drop(columns=[redundant_column_name])
+            input_feature_test_df = test_df.drop(columns=[redundant_column_name])
+
 
             custom_replacer = CustomReplacer()
             train_data = custom_replacer.fit_transform(input_feature_train_df)
@@ -124,7 +126,7 @@ class DataTransformation:
             return (
                 train_arr,
                 test_arr,
-                self.data_transformation_config.preprocessor_obj_file_path,
+                self.data_transformation_config.preprocessor_obj_file_path
             )
 
         except Exception as e:
