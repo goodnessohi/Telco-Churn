@@ -4,7 +4,7 @@ import dill
 import pickle
 import numpy as np
 import pandas as pd
-
+from src.logger import logging
 from src.exception import CustomException
     
 from sklearn.metrics import (
@@ -30,49 +30,46 @@ def evaluate_models(X_train, y_train, X_test, y_test, models):
         try:
             # Train the model
             model.fit(X_train, y_train)
-            
+            logging.info(f'{model_name} training completed.')
+
             # Predict the training and test sets
             y_train_pred = model.predict(X_train)
             y_test_pred = model.predict(X_test)
-            
+            logging.info(f'{model_name} prediction completed.')
+
             # Calculate various metrics
             accuracy = accuracy_score(y_test, y_test_pred)
-            precision = precision_score(y_test, y_test_pred, average='weighted', zero_division=0)
             recall = recall_score(y_test, y_test_pred, average='weighted', zero_division=0)
-            f1 = f1_score(y_test, y_test_pred, average='weighted', zero_division=0)
-            
-            # Calculate ROC AUC only if y_test has more than one class
-            if len(set(y_test)) > 1:
-                if hasattr(model, "predict_proba"):
-                    y_test_prob = model.predict_proba(X_test)[:, 1]
-                else:
-                    y_test_prob = model.decision_function(X_test)
-                    
-                roc_auc = roc_auc_score(y_test, y_test_prob, multi_class='ovr', average='weighted')
-            else:
-                roc_auc = None
-            
-            # Confusion Matrix
-            conf_matrix = confusion_matrix(y_test, y_test_pred)
-            
-            # Classification Report
-            class_report = classification_report(y_test, y_test_pred, zero_division=0)
-            
-            # Store all metrics in the report
+
+            # Store metrics in the report
             report[model_name] = {
                 'accuracy': accuracy,
-                'precision': precision,
                 'recall': recall,
-                'f1_score': f1,
-                'roc_auc': roc_auc,
-                'confusion_matrix': conf_matrix,
-                'classification_report': class_report
             }
+            logging.info(f'{model_name} evaluation completed.')
         
         except Exception as e:
-            print(f"Error evaluating model {model_name}: {str(e)}")
+            logging.error(f"Error evaluating model {model_name}: {str(e)}")
     
     return report
+
+def find_best_model(model_report, accuracy_weight=0.5, recall_weight=0.5):
+    # Initialize variables to store the best model name and score
+    best_model_name = None
+    best_model_score = -1
+
+    for model_name, metrics in model_report.items():
+        # Calculate weighted score
+        weighted_score = (accuracy_weight * metrics['accuracy']) + (recall_weight * metrics['recall'])
+        
+        # Update best model if the current one is better
+        if weighted_score > best_model_score:
+            best_model_name = model_name
+            best_model_score = weighted_score
+
+    return best_model_name, best_model_score
+
+
 
 def load_object(file_path):
     try:

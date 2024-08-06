@@ -18,7 +18,7 @@ from sklearn.metrics import (
 
 from src.exception import CustomException
 from src.logger import logging
-from src.utils import save_obj, evaluate_models
+from src.utils import save_obj, evaluate_models, find_best_model
 
 @dataclass
 class ModelTrainerConfig:
@@ -27,7 +27,7 @@ class ModelTrainerConfig:
 
 class ModelTrainer:
     def __init__(self):
-        self.model_trainer_config= ModelTrainerConfig()
+        self.model_trainer_config = ModelTrainerConfig()
 
     def initiate_model_training(self, train_arr, test_arr, y_train, y_test, preprocessor_obj_file_path):
         try:
@@ -39,34 +39,34 @@ class ModelTrainer:
             logging.info(f"y_train shape before reshape: {y_train.shape}")
             logging.info(f"y_test shape before reshape: {y_test.shape}")
 
-            X_train = X_train.reshape(X_train.shape[1], X_train.shape[2])
-            X_test = X_test.reshape(X_test.shape[1], X_test.shape[2])
-            
-            logging.info(f"Train array shape after: {train_arr.shape}")
-            logging.info(f"Test array shape after: {test_arr.shape}")
-            logging.info(f"y_train shape after: {y_train.shape}")
-            logging.info(f"y_test shape after: {y_test.shape}")
+            # **No need for reshaping if the data is correctly preprocessed**
+            # Ensure X_train and X_test are indeed 2D matrices as expected
+            if len(X_train.shape) != 2 or len(X_test.shape) != 2:
+                raise ValueError("Expected train and test arrays to be 2-dimensional")
+
+            logging.info(f"Train array shape after transformation: {X_train.shape}")
+            logging.info(f"Test array shape after transformation: {X_test.shape}")
 
             # Convert 'Churn' column to numeric
             y_train = y_train.map({'Yes': 1, 'No': 0})
             y_test = y_test.map({'Yes': 1, 'No': 0})
             
-            #Define models
+            # Define models
             models = {
                 "CatBoostClassifier": CatBoostClassifier(iterations=100, verbose=False),
                 "Random Forest": RandomForestClassifier(),
                 "SVM": SVC(probability=True),
-                "Logistic Regression": LogisticRegression(max_iter=1000)
-
+                "Logistic Regression": LogisticRegression(max_iter=1000),
+                "XGBClassifier": XGBClassifier(use_label_encoder=False, eval_metric='logloss')
             }
 
             params = {
-            "Random Forest": {'n_estimators': [10, 50, 100]},
-            "LogisticRegression": {},
-            "SVM": {'C': [0.1, 1, 10]},
-            'CatBoostClassifier': {'learning_rate': [0.01, 0.1], 'depth': [4, 6, 8]},
-            'XGBClassifier': {'learning_rate': [0.01, 0.1], 'max_depth': [3, 6, 9]}
-                }
+                "Random Forest": {'n_estimators': [10, 50, 100]},
+                "Logistic Regression": {},
+                "SVM": {'C': [0.1, 1, 10]},
+                "CatBoostClassifier": {'learning_rate': [0.01, 0.1], 'depth': [4, 6, 8]},
+                "XGBClassifier": {'learning_rate': [0.01, 0.1], 'max_depth': [3, 6, 9]}
+            }
             
             best_models = {}
                 
@@ -79,24 +79,23 @@ class ModelTrainer:
                     n_jobs=-1,
                     scoring='accuracy',
                     error_score='raise'
-        )
+                )
                 grid_search.fit(X_train, y_train)
 
-                #Get best model
+                # Get best model
                 best_models[model_name] = grid_search.best_estimator_
 
             # Evaluate the best models
             model_report = evaluate_models(X_train, y_train, X_test, y_test, best_models)
             logging.info('Model evaluation is being carried out...')
     
-            # Get the best model score from the evaluation report
-            best_model_score = max(model_report.values())
+            
             logging.info('Best model score is being obtained...')
     
             # Get the best model name from the evaluation report
-            best_model_name = max(model_report, key=model_report.get)
-            best_model = best_models[best_model_name]
-    
+            model_report = evaluate_models(X_train, y_train, X_test, y_test, models)
+            best_model_name, best_model_score = find_best_model(model_report, accuracy_weight=0.7, recall_weight=0.3)
+            logging.info('Best model is obtained. Proceeding to testing if it meet 0.6 threshold')
             # Check if the best model score is above the threshold
             if best_model_score < 0.6:
                 raise CustomException(f"No best model as the model scores are less than 60%")
@@ -106,14 +105,12 @@ class ModelTrainer:
             # Print the best model and its score
             logging.info(f'Best model: {best_model_name} with a score of {best_model_score:.2f}')
 
-            save_obj(
-                file_path=self.model_trainer_config.trained_model_file_path,
-                obj=best_model
-            )
+            # Save the best model
+            save_obj(self.model_trainer_config.trained_model_file_path, best_models[best_model_name])
             logging.info('Trained model has been saved.')
 
-              # Assuming best_model is obtained from the previous steps
-            predicted = best_model.predict(X_test)
+            # Assuming best_model is obtained from the previous steps
+            predicted = best_models[best_model_name].predict(X_test)
 
             # Calculate and log various classification metrics
             accuracy = accuracy_score(y_test, predicted)
