@@ -1,43 +1,85 @@
-import pickle
+import pandas as pd
 import numpy as np
 import shap
+import joblib
 
 class ChurnPredictor:
-    def __init__(self, model_path, preprocessor_path):
-        # Load the trained model
-        with open(model_path, 'rb') as model_file:
-            self.model = pickle.load(model_file)
+    def __init__(self, model_path, preprocessor_path, sample_data_path):
+        # Load the model and preprocessor
+        self.model = joblib.load(model_path)
+        self.preprocessor = joblib.load(preprocessor_path)
         
-        # Load the preprocessor
-        with open(preprocessor_path, 'rb') as preprocessor_file:
-            self.preprocessor = pickle.load(preprocessor_file)
+        # Load and preprocess the sample data for SHAP
+        sample_data = pd.read_csv(sample_data_path)
+        sample_data = self.preprocess_sample_data(sample_data)
         
-        # Initialize the SHAP explainer
-        self.explainer = shap.Explainer(self.model, self.preprocessor.transform)
-        self.shap_values = None
+        # Transform the sample data
+        self.X_background = self.preprocessor.transform(sample_data)
+        
+        # Initialize SHAP explainer
+        self.explainer = shap.LinearExplainer(self.model, self.X_background)
+        
+        # Store column names for reference
+        self.categorical_columns = ['gender', 'Partner', 'Dependents', 'PhoneService', 
+                                    'MultipleLines', 'InternetService', 'OnlineSecurity', 
+                                    'OnlineBackup', 'DeviceProtection', 'TechSupport', 
+                                    'StreamingTV', 'StreamingMovies', 'Contract', 
+                                    'PaperlessBilling', 'PaymentMethod']
+        
+        self.numerical_columns = ['SeniorCitizen', 'tenure', 'MonthlyCharges', 'TotalCharges']
+
+    def preprocess_sample_data(self, data):
+        """
+        Preprocesses the sample data for SHAP analysis.
+        """
+        # Drop unnecessary columns
+        data = data.drop(columns=['customerID', 'Churn'], errors='ignore')
+        
+        # Ensure TotalCharges is numeric, handling any non-numeric values
+        data['TotalCharges'] = pd.to_numeric(data['TotalCharges'], errors='coerce')
+        
+        # Drop rows with NaN values in TotalCharges
+        data = data.dropna(subset=['TotalCharges'])
+        
+        return data
 
     def predict(self, input_data):
-        # Preprocess the input data
-        processed_data = self.preprocessor.transform(np.array(input_data).reshape(1, -1))
+        """
+        Predicts churn for a given input data.
+        """
+        # Preprocess input data
+        processed_data = self.preprocessor.transform(input_data)
         
-        # Make predictions
+        # Make prediction
         prediction = self.model.predict(processed_data)
-        probability = self.model.predict_proba(processed_data)
-
-        return prediction[0], probability[0][1]  # Return class and probability
+        
+        # Get prediction probability
+        probability = self.model.predict_proba(processed_data)[:, 1]
+        
+        return prediction[0], probability[0]
 
     def calculate_shap_values(self, data):
-        # Preprocess the data for SHAP values calculation
+        """
+        Calculates SHAP values for a given data.
+        """
+        # Ensure the data is a DataFrame before transformation
+        data = self.preprocess_sample_data(data)
+        
+        # Transform the data
         processed_data = self.preprocessor.transform(data)
+        
         # Calculate SHAP values
-        self.shap_values = self.explainer(processed_data)
-        return self.shap_values
+        shap_values = self.explainer.shap_values(processed_data)
+        
+        return shap_values
 
-    def feature_importance_summary(self, data):
-        # Calculate SHAP values if not done
-        if self.shap_values is None:
-            self.calculate_shap_values(data)
-
-        # Summarize feature importance using SHAP values
-        shap.summary_plot(self.shap_values, self.preprocessor.transform(data), show=False)
-        return shap.plots._force.force_plot(self.explainer.expected_value[0], self.shap_values[0][0], data.iloc[0])
+    def get_feature_names(self):
+        """
+        Retrieves feature names from the preprocessor.
+        """
+        # Get feature names from the preprocessor's OneHotEncoder
+        cat_pipeline = self.preprocessor.named_transformers_['cat_pipeline']
+        ohe = cat_pipeline.named_steps['onehot']
+        categorical_feature_names = ohe.get_feature_names_out(self.categorical_columns)
+        
+        return np.concatenate([self.numerical_columns, categorical_feature_names])

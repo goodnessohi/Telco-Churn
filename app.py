@@ -1,4 +1,3 @@
-
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -7,10 +6,11 @@ import shap
 from src.components.predict_pipeline import ChurnPredictor
 
 # Initialize the predictor
-predictor = ChurnPredictor("artifacts/model.pkl", "artifacts/preprocessor.pkl")
-
-# Load a sample dataset for SHAP analysis
-sample_data = pd.read_csv("artifacts/test.csv")  # A subset of the dataset for SHAP
+predictor = ChurnPredictor(
+    model_path="artifacts/model.pkl",
+    preprocessor_path="artifacts/preprocessor.pkl",
+    sample_data_path="artifacts/train.csv"  # Use train.csv as the sample data for SHAP
+)
 
 def main():
     st.title("Telco Churn Prediction with SHAP")
@@ -18,6 +18,7 @@ def main():
     # Define input fields for user input
     customer_id = st.text_input("Customer ID", "7590-VHVEG")
     gender = st.selectbox("Gender", options=['Female', 'Male'])
+    senior_citizen = st.selectbox("Senior Citizen", options=[0, 1])  # Add Senior Citizen
     partner = st.selectbox("Partner", options=['Yes', 'No'])
     dependents = st.selectbox("Dependents", options=['Yes', 'No'])
     phone_service = st.selectbox("Phone Service", options=['Yes', 'No'])
@@ -38,8 +39,8 @@ def main():
 
     # Compile inputs into a dataframe
     input_data = pd.DataFrame({
-        'customerID': [customer_id],
         'gender': [gender],
+        'SeniorCitizen': [senior_citizen],
         'Partner': [partner],
         'Dependents': [dependents],
         'PhoneService': [phone_service],
@@ -66,24 +67,26 @@ def main():
             st.error(f"Customer is likely to churn. Probability: {probability:.2f}")
         else:
             st.success(f"Customer is unlikely to churn. Probability: {probability:.2f}")
-    
+
     # Display SHAP Feature Importance Summary
     st.subheader("Feature Importance Summary")
     st.text("This plot shows the importance of each feature in the model.")
-    shap_values = predictor.calculate_shap_values(sample_data)
     
+    # Use sample data from the predictor for SHAP analysis
+    shap_values = predictor.calculate_shap_values(pd.read_csv("artifacts/train.csv").drop(columns=['customerID', 'Churn'], errors='ignore'))
+
     # Plot SHAP Summary
     plt.figure()
-    shap.summary_plot(shap_values, predictor.preprocessor.transform(sample_data), feature_names=sample_data.columns, show=False)
+    shap.summary_plot(shap_values, predictor.X_background, feature_names=predictor.get_feature_names(), show=False)
     st.pyplot(plt)
 
     # User-based SHAP Analysis
     st.subheader("Customer-specific SHAP Analysis")
-    customer_index = st.number_input("Select Customer Index for SHAP Analysis", min_value=0, max_value=len(sample_data)-1, value=0)
-    
+    customer_index = st.number_input("Select Customer Index for SHAP Analysis", min_value=0, max_value=len(predictor.X_background)-1, value=0)
+
     # Plot SHAP force plot for a specific customer
-    customer_data = sample_data.iloc[[customer_index]]
-    shap.force_plot(predictor.explainer.expected_value[0], shap_values[customer_index], customer_data, matplotlib=True, show=False)
+    customer_data = pd.DataFrame(predictor.X_background[customer_index].reshape(1, -1), columns=predictor.get_feature_names())
+    shap.force_plot(predictor.explainer.expected_value, shap_values[customer_index], customer_data, matplotlib=True, show=False)
     st.pyplot(plt)
 
 if __name__ == '__main__':
