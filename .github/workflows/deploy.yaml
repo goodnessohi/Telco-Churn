@@ -24,7 +24,7 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t telco-churn .
+          docker build -t telco-churn . 
           docker tag telco-churn:latest 767397827719.dkr.ecr.eu-north-1.amazonaws.com/telco-churn:latest
           docker push 767397827719.dkr.ecr.eu-north-1.amazonaws.com/telco-churn:latest
 
