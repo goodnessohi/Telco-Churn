@@ -1,0 +1,36 @@
+{
+    "family": "telco-churn",
+    "taskRoleArn": "arn:aws:iam::767397827719:role/ecsTaskExecutionRole",
+    "executionRoleArn": "arn:aws:iam::767397827719:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "containerDefinitions": [
+      {
+        "name": "Telco-Dockers",
+        "image": "767397827719.dkr.ecr.eu-north-1.amazonaws.com/telco-churn:latest",
+        "cpu": 0,
+        "memory": 512,
+        "essential": true,
+        "portMappings": [
+          {
+            "containerPort": 8501,
+            "hostPort": 8501,
+            "protocol": "tcp"
+          }
+        ],
+        "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+            "awslogs-group": "/ecs/telco-churn",
+            "awslogs-region": "eu-north-1",
+            "awslogs-stream-prefix": "ecs"
+          }
+        }
+      }
+    ],
+    "requiresCompatibilities": [
+      "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512"
+  }
+  
