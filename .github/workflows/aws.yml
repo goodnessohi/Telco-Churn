@@ -41,7 +41,7 @@ jobs:
           image: 767397827719.dkr.ecr.eu-north-1.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
       - name: Deploy Amazon ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-service@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           cluster: ${{ env.ECS_CLUSTER }}
           service: ${{ env.ECS_SERVICE }}
