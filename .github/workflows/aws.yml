@@ -33,7 +33,7 @@ on:
 env:
   ECS_CLUSTER: ECS_CLUSTER                 # set this to your Amazon ECS cluster name
   AWS_REGION: eu-north-1                   # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: ECR_REPOSITORY_NAME           # set this to your Amazon ECR repository name
+  ECR_REPOSITORY: telco-churn           # set this to your Amazon ECR repository name
   ECS_SERVICE: ECS_SERVICE                 # set this to your Amazon ECS service name
   
   ECS_TASK_DEFINITION: .aws/ecs-task-definition.json # set this to the path to your Amazon ECS task definition
